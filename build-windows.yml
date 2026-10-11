@@ -1,0 +1,61 @@
+name: Build _[MRAIL]_RP Launcher for Windows
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*.*.*" ] # Автоматический запуск релиза при пуше тега (например, v1.2.1)
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Кнопка для ручного запуска в Actions
+
+# Разрешаем GitHub Actions создавать релизы и загружать туда файлы
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24.21.0' # Сохранена ваша версия Node.js
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    # Запускаем именно вашу команду "npm run dist" для запуска electron-builder
+    - name: Build Application
+      run: npm run dist
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Токен для авторизации electron-builder в релизах
+
+    # Сохраняем собранные установщики в артефакты GitHub Actions (доступны 90 дней)
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MRAIL-RP-Launcher-Windows
+        path: |
+          dist/*.exe
+          dist/*.blockmap
+          dist/latest.yml
+        if-no-files-found: error # Вызовет ошибку воркфлоу, если файлы не создались (для контроля)
+
+    # Публикуем файлы на постоянную страницу релизов GitHub (только при пуше тега)
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/*.exe
+          dist/*.blockmap
+          dist/latest.yml
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
